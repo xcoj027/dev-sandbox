@@ -49,6 +49,8 @@ Clone the repository and launch Dev Sandbox using the included Gradle wrapper:
 git clone https://github.com/your-username/dev-sandbox.git
 cd dev-sandbox
 ./gradlew run
+# or use the startup script:
+./scripts/start-dev-sandbox.sh [optional/path/to/project]
 ```
 
 On Windows:
