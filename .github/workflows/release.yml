@@ -239,4 +239,4 @@ jobs:
           body: Automated build artifacts for ${{ steps.release_info.outputs.title }}.
           prerelease: ${{ steps.release_info.outputs.prerelease }}
           files: release-assets/*
-          generate_release_notes: false
+          generate_release_notes: true
