@@ -1,0 +1,189 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-packages:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            artifact_dir: release-macos
+          - os: windows-latest
+            platform: windows
+            artifact_dir: release-windows
+          - os: ubuntu-latest
+            platform: linux
+            artifact_dir: release-linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Make Gradle wrapper executable
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew
+
+      - name: Build and Obfuscate JAR with ProGuard
+        run: |
+          ./gradlew check obfuscate distZip --no-daemon
+          rm -f build/libs/dev-sandbox-raw.jar
+
+      - name: Package Executable on macOS
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p build/dist-pkg ${{ matrix.artifact_dir }}
+          
+          # Create macOS DMG installer
+          jpackage --input build/libs \
+            --name DevSandbox \
+            --main-jar dev-sandbox.jar \
+            --main-class com.dixon.sandbox.DevSandboxApp \
+            --icon src/main/resources/icons/dev-sandbox.icns \
+            --dest build/dist-pkg \
+            --app-version 1.0.0 \
+            --type dmg
+          
+          # Create macOS portable .app bundle inside a zip
+          jpackage --input build/libs \
+            --name DevSandbox \
+            --main-jar dev-sandbox.jar \
+            --main-class com.dixon.sandbox.DevSandboxApp \
+            --icon src/main/resources/icons/dev-sandbox.icns \
+            --dest build/dist-pkg \
+            --app-version 1.0.0 \
+            --type app-image
+
+          (cd build/dist-pkg && zip -r ../../${{ matrix.artifact_dir }}/DevSandbox-macos-app.zip DevSandbox.app)
+          mv build/dist-pkg/*.dmg ${{ matrix.artifact_dir }}/DevSandbox-macos.dmg
+
+      - name: Package Executable on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/dist-pkg, ${{ matrix.artifact_dir }}
+          
+          # Create Windows portable app-image (includes embedded JRE + DevSandbox.exe)
+          jpackage --input build/libs `
+            --name DevSandbox `
+            --main-jar dev-sandbox.jar `
+            --main-class com.dixon.sandbox.DevSandboxApp `
+            --icon src/main/resources/icons/dev-sandbox.ico `
+            --dest build/dist-pkg `
+            --app-version 1.0.0 `
+            --type app-image
+
+          # Compress to portable zip
+          Compress-Archive -Path build/dist-pkg/DevSandbox -DestinationPath ${{ matrix.artifact_dir }}/DevSandbox-windows-x64.zip
+
+      - name: Package Executable on Linux
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p build/dist-pkg ${{ matrix.artifact_dir }}
+          
+          # Create Linux portable app-image
+          jpackage --input build/libs \
+            --name DevSandbox \
+            --main-jar dev-sandbox.jar \
+            --main-class com.dixon.sandbox.DevSandboxApp \
+            --icon src/main/resources/icons/dev-sandbox-app-icon.png \
+            --dest build/dist-pkg \
+            --app-version 1.0.0 \
+            --type app-image
+
+          tar -czvf ${{ matrix.artifact_dir }}/DevSandbox-linux-x64.tar.gz -C build/dist-pkg DevSandbox
+
+          # Create Debian (.deb) package
+          jpackage --input build/libs \
+            --name dev-sandbox \
+            --main-jar dev-sandbox.jar \
+            --main-class com.dixon.sandbox.DevSandboxApp \
+            --icon src/main/resources/icons/dev-sandbox-app-icon.png \
+            --dest build/dist-pkg \
+            --app-version 1.0.0 \
+            --type deb \
+            --linux-package-name dev-sandbox \
+            --linux-shortcut
+          
+          mv build/dist-pkg/*.deb ${{ matrix.artifact_dir }}/dev-sandbox-linux.deb
+          
+          # Include Universal JAR & Gradle distribution
+          cp build/libs/dev-sandbox.jar ${{ matrix.artifact_dir }}/dev-sandbox-universal.jar
+          cp build/distributions/*.zip ${{ matrix.artifact_dir }}/
+
+      - name: Upload Platform Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.platform }}
+          path: ${{ matrix.artifact_dir }}/*
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Release
+    needs: build-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p release-assets
+          find downloaded-artifacts -type f -exec cp {} release-assets/ \;
+          
+          # Generate SHA-256 Checksums
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+          
+          ls -lh release-assets
+
+      - name: Determine Release Tag and Title
+        id: release_info
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "tag=${TAG}" >> $GITHUB_OUTPUT
+            echo "title=Release ${TAG}" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "title=Dev Sandbox (Latest Build)" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ vars.RELEASE_REPOSITORY || github.repository }}
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.title }}
+          prerelease: ${{ steps.release_info.outputs.prerelease }}
+          files: release-assets/*
+          generate_release_notes: true
