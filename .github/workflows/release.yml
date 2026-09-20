@@ -64,7 +64,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Obfuscate JAR with ProGuard
-        run: ./gradlew check obfuscate distZip --no-daemon
+        run: ./gradlew check obfuscate --no-daemon
 
       - name: Package Executable on macOS
         if: runner.os == 'macOS'
@@ -81,17 +81,6 @@ jobs:
             --app-version 1.0.0 \
             --type dmg
           
-          # Create macOS portable .app bundle inside a zip
-          jpackage --input build/libs \
-            --name DevSandbox \
-            --main-jar dev-sandbox.jar \
-            --main-class com.dixon.sandbox.DevSandboxApp \
-            --icon src/main/resources/icons/dev-sandbox.icns \
-            --dest build/dist-pkg \
-            --app-version 1.0.0 \
-            --type app-image
-
-          (cd build/dist-pkg && zip -r ../../${{ matrix.artifact_dir }}/DevSandbox-macos-app.zip DevSandbox.app)
           mv build/dist-pkg/*.dmg ${{ matrix.artifact_dir }}/DevSandbox-macos.dmg
 
       - name: Package Executable on Windows
@@ -101,7 +90,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "build/dist-pkg"
           New-Item -ItemType Directory -Force -Path "${{ matrix.artifact_dir }}"
           
-          # Create Windows portable app-image (includes embedded JRE + DevSandbox.exe)
+          # Create Windows installer
           jpackage --input build/libs `
             --name DevSandbox `
             --main-jar dev-sandbox.jar `
@@ -109,10 +98,9 @@ jobs:
             --icon src/main/resources/icons/dev-sandbox.ico `
             --dest build/dist-pkg `
             --app-version 1.0.0 `
-            --type app-image
+            --type exe
 
-          # Compress to portable zip
-          Compress-Archive -Path "build/dist-pkg/DevSandbox" -DestinationPath "${{ matrix.artifact_dir }}/DevSandbox-windows-x64.zip" -Force
+          Move-Item "build/dist-pkg/DevSandbox-1.0.0.exe" "${{ matrix.artifact_dir }}/DevSandbox-windows-x64.exe"
 
       - name: Package Executable on Linux
         if: runner.os == 'Linux'
@@ -174,7 +162,7 @@ jobs:
           mkdir -p release-assets
           find downloaded-artifacts -type f \( \
             -name 'DevSandbox-*.dmg' -o \
-            -name 'DevSandbox-*.zip' -o \
+            -name 'DevSandbox-*.exe' -o \
             -name 'DevSandbox-*.tar.gz' -o \
             -name 'dev-sandbox-linux.deb' -o \
             -name 'dev-sandbox-universal.jar' \
@@ -218,20 +206,18 @@ jobs:
             exit 1
           fi
 
-      - name: Remove previous latest release assets
+      - name: Remove previous releases
         shell: bash
         env:
           TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-releases' }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          RELEASE_ID=$(gh api "repos/$TARGET_REPOSITORY/releases/tags/latest" --jq '.id // empty' 2>/dev/null || true)
-          if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
-            gh api "repos/$TARGET_REPOSITORY/releases/$RELEASE_ID" \
-              --jq '.assets[].id' |
-            while read -r asset_id; do
-              gh api --method DELETE "repos/$TARGET_REPOSITORY/releases/assets/$asset_id"
+          gh api --paginate "repos/$TARGET_REPOSITORY/releases?per_page=100" --jq '.[].id' |
+            while read -r release_id; do
+              if [[ "$release_id" =~ ^[0-9]+$ ]]; then
+                gh api --method DELETE "repos/$TARGET_REPOSITORY/releases/$release_id"
+              fi
             done
-          fi
 
       - name: Publish or Update GitHub Release
         uses: softprops/action-gh-release@v2
