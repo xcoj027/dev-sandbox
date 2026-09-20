@@ -145,9 +145,8 @@ jobs:
           
           mv build/dist-pkg/*.deb ${{ matrix.artifact_dir }}/dev-sandbox-linux.deb
           
-          # Include Universal JAR & Gradle distribution
+          # Include Universal JAR
           cp build/libs/dev-sandbox.jar ${{ matrix.artifact_dir }}/dev-sandbox-universal.jar
-          cp build/distributions/*.zip ${{ matrix.artifact_dir }}/
 
       - name: Upload Platform Artifacts
         uses: actions/upload-artifact@v4
@@ -173,7 +172,13 @@ jobs:
       - name: Prepare Release Assets
         run: |
           mkdir -p release-assets
-          find downloaded-artifacts -type f -exec cp {} release-assets/ \;
+          find downloaded-artifacts -type f \( \
+            -name 'DevSandbox-*.dmg' -o \
+            -name 'DevSandbox-*.zip' -o \
+            -name 'DevSandbox-*.tar.gz' -o \
+            -name 'dev-sandbox-linux.deb' -o \
+            -name 'dev-sandbox-universal.jar' \
+          \) -exec cp {} release-assets/ \;
           
           # Generate SHA-256 Checksums
           cd release-assets
@@ -200,7 +205,7 @@ jobs:
       - name: Validate Release Token for Target Repository
         shell: bash
         env:
-          TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
+          TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-releases' }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           echo "Target Release Repository: $TARGET_REPOSITORY"
@@ -219,8 +224,8 @@ jobs:
           TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-releases' }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          RELEASE_ID=$(gh api "repos/$TARGET_REPOSITORY/releases/tags/latest" --jq '.id' 2>/dev/null || true)
-          if [[ -n "$RELEASE_ID" ]]; then
+          RELEASE_ID=$(gh api "repos/$TARGET_REPOSITORY/releases/tags/latest" --jq '.id // empty' 2>/dev/null || true)
+          if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
             gh api "repos/$TARGET_REPOSITORY/releases/$RELEASE_ID" \
               --jq '.assets[].id' |
             while read -r asset_id; do
