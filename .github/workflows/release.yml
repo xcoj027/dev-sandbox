@@ -216,7 +216,7 @@ jobs:
       - name: Remove previous latest release assets
         shell: bash
         env:
-          TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
+          TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-releases' }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           RELEASE_ID=$(gh api "repos/$TARGET_REPOSITORY/releases/tags/latest" --jq '.id' 2>/dev/null || true)
@@ -231,7 +231,7 @@ jobs:
       - name: Publish or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          repository: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
+          repository: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-releases' }}
           token: ${{ secrets.RELEASE_TOKEN }}
           tag_name: ${{ steps.release_info.outputs.tag }}
           target_commitish: main
