@@ -30,6 +30,7 @@ application {
 }
 
 tasks.named('jar') {
+	destinationDirectory = layout.buildDirectory.dir('raw')
 	archiveFileName = 'dev-sandbox-raw.jar'
 	manifest {
 		attributes(

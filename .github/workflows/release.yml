@@ -44,9 +44,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Obfuscate JAR with ProGuard
-        run: |
-          ./gradlew check obfuscate distZip --no-daemon
-          rm -f build/libs/dev-sandbox-raw.jar
+        run: ./gradlew check obfuscate distZip --no-daemon
 
       - name: Package Executable on macOS
         if: runner.os == 'macOS'
@@ -80,7 +78,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path build/dist-pkg, ${{ matrix.artifact_dir }}
+          New-Item -ItemType Directory -Force -Path "build/dist-pkg"
+          New-Item -ItemType Directory -Force -Path "${{ matrix.artifact_dir }}"
           
           # Create Windows portable app-image (includes embedded JRE + DevSandbox.exe)
           jpackage --input build/libs `
@@ -93,7 +92,7 @@ jobs:
             --type app-image
 
           # Compress to portable zip
-          Compress-Archive -Path build/dist-pkg/DevSandbox -DestinationPath ${{ matrix.artifact_dir }}/DevSandbox-windows-x64.zip
+          Compress-Archive -Path "build/dist-pkg/DevSandbox" -DestinationPath "${{ matrix.artifact_dir }}/DevSandbox-windows-x64.zip" -Force
 
       - name: Package Executable on Linux
         if: runner.os == 'Linux'
