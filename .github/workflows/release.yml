@@ -190,7 +190,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           repository: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN || secrets.RELEASE_TOKEN }}
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: ${{ steps.release_info.outputs.title }}
           prerelease: ${{ steps.release_info.outputs.prerelease }}
