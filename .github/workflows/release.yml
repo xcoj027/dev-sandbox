@@ -178,11 +178,17 @@ jobs:
 
       - name: Validate Release Token for Target Repository
         shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          TARGET="${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}"
-          echo "Target Release Repository: $TARGET"
-          if [[ "$TARGET" != "${{ github.repository }}" && -z "${{ secrets.RELEASE_TOKEN }}" ]]; then
-            echo "::error::Publishing releases to external repository '$TARGET' requires a GitHub Personal Access Token (PAT) with 'repo' scope stored as secret 'RELEASE_TOKEN' in this repository."
+          echo "Target Release Repository: $TARGET_REPOSITORY"
+          if [[ "$TARGET_REPOSITORY" != "${{ github.repository }}" && -z "${{ secrets.RELEASE_TOKEN }}" ]]; then
+            echo "::error::Publishing releases to external repository '$TARGET_REPOSITORY' requires a PAT in the RELEASE_TOKEN secret. The PAT must have access to the target repository, not only this source repository."
+            exit 1
+          fi
+          if ! gh api "repos/$TARGET_REPOSITORY" >/dev/null; then
+            echo "::error::The release token cannot access '$TARGET_REPOSITORY'. For a fine-grained PAT, grant Contents read/write access to that repository and store the token as RELEASE_TOKEN in this private source repository."
             exit 1
           fi
 
@@ -194,6 +200,7 @@ jobs:
           tag_name: ${{ steps.release_info.outputs.tag }}
           target_commitish: main
           name: ${{ steps.release_info.outputs.title }}
+          body: Automated build artifacts for ${{ steps.release_info.outputs.title }}.
           prerelease: ${{ steps.release_info.outputs.prerelease }}
           files: release-assets/*
-          generate_release_notes: true
+          generate_release_notes: false
