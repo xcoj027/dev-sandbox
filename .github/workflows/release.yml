@@ -176,10 +176,20 @@ jobs:
             echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Validate Release Token for Target Repository
+        shell: bash
+        run: |
+          TARGET="${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}"
+          echo "Target Release Repository: $TARGET"
+          if [[ "$TARGET" != "${{ github.repository }}" && -z "${{ secrets.RELEASE_TOKEN }}" ]]; then
+            echo "::error::Publishing releases to external repository '$TARGET' requires a GitHub Personal Access Token (PAT) with 'repo' scope stored as secret 'RELEASE_TOKEN' in this repository."
+            exit 1
+          fi
+
       - name: Publish or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          repository: ${{ vars.RELEASE_REPOSITORY || github.repository }}
+          repository: ${{ vars.RELEASE_REPOSITORY || 'xcoj027/dev-sandbox-release' }}
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: ${{ steps.release_info.outputs.title }}
