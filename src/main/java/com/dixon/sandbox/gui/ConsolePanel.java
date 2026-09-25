@@ -15,6 +15,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -33,11 +36,13 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.DefaultCaret;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
@@ -228,7 +233,13 @@ public class ConsolePanel extends JPanel {
 			// Console Text Area
 			textPane = new JTextPane();
 			textPane.setEditable(false);
+			textPane.getInputMap(JComponent.WHEN_FOCUSED).put(
+					KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.META_DOWN_MASK), DefaultEditorKit.copyAction);
+			textPane.getInputMap(JComponent.WHEN_FOCUSED).put(
+					KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK), DefaultEditorKit.copyAction);
 			((DefaultCaret) textPane.getCaret()).setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
+			textPane.setSelectionColor(DarkTheme.ACCENT_PRIMARY);
+			textPane.setSelectedTextColor(Color.WHITE);
 			textPane.addMouseListener(new MouseAdapter() {
 				@Override
 				public void mousePressed(MouseEvent event) {
